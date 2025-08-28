@@ -6,16 +6,17 @@
   <title>AR 丈感チェック（カメラ重ね合わせ）</title>
   <style>
     :root{
-      --ui-bg: rgba(255,255,255,.78);
+      --ui-bg: rgba(255,255,255,.88);
       --ui-blur: 10px;
-      --shadow: 0 8px 26px rgba(0,0,0,.14);
-      --accent:#0ea5e9;
+      --shadow: 0 8px 28px rgba(0,0,0,.15);
+      --accent: #0ea5e9;
+      --radius: 14px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0}
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; }
     body{
-      font-family:system-ui,-apple-system,"Noto Sans JP",Segoe UI,Roboto,sans-serif;
-      background:#000;color:#111;
+      font-family: system-ui,-apple-system,"Noto Sans JP",Segoe UI,Roboto,sans-serif;
+      background:#000; color:#111;
     }
 
     /* カメラ映像 */
@@ -23,65 +24,96 @@
       position:fixed; inset:0;
       width:100vw; height:100vh;
       object-fit:cover; background:#000;
+      transition: transform .25s ease;
     }
 
-    /* シルエットSVG（S/M/L切替でsrcだけ差し替え） */
+    /* シルエット（S/M/LのSVGを差し替える） */
     #silhouette{
       position:fixed; top:50%; left:50%;
-      height:80vh; transform:translate(-50%,-50%);
-      pointer-events:none; z-index:5; opacity:.98;
+      height:80vh;                     /* 目安の高さ */
+      transform:translate(-50%,-50%); /* 中央固定 */
+      pointer-events:none; z-index:5; opacity:.95;
     }
 
-    /* 画面上部のガイドラベル */
+    /* 画面上部のガイド */
     .tip{
       position:fixed; top:10px; left:50%; transform:translateX(-50%);
-      background:var(--ui-bg); -webkit-backdrop-filter:blur(var(--ui-blur)); backdrop-filter:blur(var(--ui-blur));
-      border-radius:999px; padding:6px 12px; box-shadow:var(--shadow); z-index:30; font-size:12px;
+      background:var(--ui-bg);
+      -webkit-backdrop-filter:blur(var(--ui-blur));
+      backdrop-filter:blur(var(--ui-blur));
+      border-radius:999px; padding:8px 14px;
+      box-shadow:var(--shadow); z-index:30; font-size:12px;
     }
 
-    /* ===== 操作UI（コンパクト） ===== */
+    /* ===== 操作UI（開閉可能） ===== */
     .overlay{
       position:fixed; left:0; right:0; bottom:0;
-      display:grid; gap:8px;
-      grid-template-columns:1fr auto auto auto;
+      display:grid; gap:10px;
+      grid-template-columns: 1fr auto auto auto;
       align-items:center;
-      padding:10px 12px;
-      background:var(--ui-bg); -webkit-backdrop-filter:blur(var(--ui-blur)); backdrop-filter:blur(var(--ui-blur));
-      border-top-left-radius:14px; border-top-right-radius:14px;
-      box-shadow:var(--shadow); z-index:20;
+      padding:12px 14px;
+      background:var(--ui-bg);
+      -webkit-backdrop-filter:blur(var(--ui-blur));
+      backdrop-filter:blur(var(--ui-blur));
+      border-top-left-radius:var(--radius);
+      border-top-right-radius:var(--radius);
+      box-shadow:var(--shadow);
+      z-index:20;
+      transition: transform .25s ease, opacity .25s ease, visibility .25s ease;
     }
-    .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-    .label{font-size:13px; opacity:.8}
+    .overlay .row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .label{ font-size:14px; opacity:.85; }
 
     .pill{
       display:inline-flex; align-items:center; justify-content:center;
-      min-width:38px; height:32px; padding:0 10px;
-      border-radius:999px; border:1px solid #d0d0d0; background:#fff; cursor:pointer; font-weight:600; font-size:13px;
+      min-width:42px; height:36px; padding:0 10px;
+      border-radius:999px; border:1px solid #d0d0d0; background:#fff;
+      cursor:pointer; font-weight:600;
     }
-    .pill input{appearance:none}
-    .pill.active{border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.14)}
+    .pill input{ appearance:none; }
+    .pill.active{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15); }
 
     input[type="number"]{
-      width:66px; height:32px; border:1px solid #d0d0d0; border-radius:8px; padding:0 8px; background:#fff; font-weight:600;
+      width:72px; height:36px;
+      border:1px solid #cfcfcf; border-radius:8px; padding:0 8px; background:#fff; font-weight:600;
     }
-
-    .btn{height:32px; padding:0 10px; border-radius:10px; border:1px solid #cfcfcf; background:#fff; cursor:pointer; font-size:13px}
-    .btn:active{transform:translateY(1px)}
+    .btn{
+      height:36px; padding:0 12px; border-radius:10px;
+      border:1px solid #cfcfcf; background:#fff; cursor:pointer;
+    }
+    .btn:active{ transform:translateY(1px); }
 
     .slider-wrap{
-      grid-column:1/-1;
-      background:#fff; border:1px solid #e8e8e8; border-radius:10px; padding:6px 10px;
+      grid-column:1 / -1;
+      background:#fff; border:1px solid #e5e5e5; border-radius:10px; padding:8px 10px;
     }
-    input[type="range"]{width:100%}
+    input[type="range"]{ width:100%; }
 
-    /* スマホでも更に控えめに */
+    /* ====== 開閉：閉じたときはパネルを沈め、ミニトグルのみ表示 ====== */
+    .toggle{
+      position:fixed; right:14px; bottom:14px;
+      z-index:25;
+      display:flex; align-items:center; gap:8px;
+      background:#fff; border:1px solid #d9d9d9; border-radius:999px;
+      padding:8px 12px; box-shadow:var(--shadow); cursor:pointer; user-select:none;
+    }
+    .toggle .dot{
+      width:8px; height:8px; border-radius:50%; background:var(--accent);
+      box-shadow:0 0 0 3px rgba(14,165,233,.15);
+    }
+    .toggle .txt{ font-size:13px; }
+
+    body.ui-collapsed .overlay{ transform: translateY(110%); opacity:0; visibility:hidden; }
+    body.ui-collapsed .toggle .txt::after{ content:"開く"; }
+    body:not(.ui-collapsed) .toggle .txt::after{ content:"閉じる"; }
+
+    /* モバイル最適化 */
     @media (max-width:640px){
-      #silhouette{height:72vh}
-      .overlay{padding:8px 10px; gap:6px}
-      .pill{min-width:34px; height:30px; font-size:12px}
-      input[type="number"]{height:30px; width:60px}
-      .btn{height:30px; padding:0 8px; font-size:12px}
-      .tip{padding:6px 10px; font-size:11px}
+      #silhouette{ height:72vh; }
+      .overlay{ gap:8px; padding:10px 12px; }
+      .btn{ height:34px; }
+      input[type="number"]{ height:34px; width:68px; }
+      .toggle{ right:10px; bottom:10px; padding:8px 12px; }
     }
   </style>
 </head>
@@ -91,39 +123,45 @@
   <!-- カメラ -->
   <video id="cam" autoplay muted playsinline></video>
 
-  <!-- シルエット（初期はM） -->
+  <!-- シルエット（初期はMを表示） -->
   <img id="silhouette" alt="silhouette" src="/ar-length-starter/public/silhouette-M.svg" />
 
-  <!-- 操作UI（コンパクト） -->
-  <div class="overlay">
+  <!-- 開閉トグル（常に右下に表示） -->
+  <button id="toggleUi" class="toggle" aria-pressed="false">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="txt" aria-label="UIの開閉状態表示"></span>
+  </button>
+
+  <!-- 操作UI（開閉対象） -->
+  <div class="overlay" id="panel">
     <div class="row">
       <span class="label">サイズ：</span>
       <label class="pill" id="pillS"><input type="radio" name="size" value="S">S</label>
       <label class="pill active" id="pillM"><input type="radio" name="size" value="M" checked>M</label>
       <label class="pill" id="pillL"><input type="radio" name="size" value="L">L</label>
 
-      <span class="label" style="margin-left:10px;">身長：</span>
+      <span class="label" style="margin-left:12px;">身長：</span>
       <input type="number" id="height" value="160" min="120" max="200" step="1"><span class="label">cm</span>
     </div>
 
-    <div class="row" style="justify-content:flex-end; gap:6px;">
+    <div class="row" style="justify-content:flex-end; gap:8px;">
       <button class="btn" id="mirrorBtn">左右反転</button>
       <button class="btn" id="lightBtn">ライト</button>
       <button class="btn" id="pauseBtn">一時停止</button>
     </div>
 
     <div class="slider-wrap">
-      <div class="label" style="margin-bottom:4px;">スケール（肩幅に合わせる）：</div>
+      <div class="label" style="margin-bottom:6px;">スケール（肩幅に合わせる）：</div>
       <input type="range" id="scaleX" min="0.8" max="1.3" step="0.01" value="1.00">
     </div>
   </div>
 
   <script>
-    // 画像参照ベース（GitHub Pages ルート配下）
+    // ===== 画像パス（GitHub Pagesの公開パスに合わせる） =====
     const BASE = '/ar-length-starter/public/';
     const MAP  = { S:'silhouette-S.svg', M:'silhouette-M.svg', L:'silhouette-L.svg' };
 
-    // DOM取得
+    // ===== DOM =====
     const video = document.getElementById('cam');
     const img   = document.getElementById('silhouette');
     const scale = document.getElementById('scaleX');
@@ -132,45 +170,51 @@
     const pillM = document.getElementById('pillM');
     const pillL = document.getElementById('pillL');
 
-    // カメラ起動
+    // ===== カメラ起動 =====
     (async () => {
       try{
-        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video:{ facingMode:'user' }, audio:false
+        });
         video.srcObject = stream;
       }catch(e){
         alert('カメラの使用許可が必要です：' + e.message);
       }
     })();
 
-    // サイズ切替
+    // ===== サイズ切替 =====
     function setSize(size){
       img.src = BASE + MAP[size];
-      [pillS,pillM,pillL].forEach(el => el.classList.remove('active'));
+      [pillS,pillM,pillL].forEach(el=>el.classList.remove('active'));
       ({S:pillS,M:pillM,L:pillL}[size]).classList.add('active');
     }
     document.querySelectorAll('input[name="size"]').forEach(r=>{
-      r.addEventListener('change', ()=> setSize(r.value));
+      r.addEventListener('change',()=>setSize(r.value));
     });
 
-    // スケール（横幅合わせ）
+    // ===== スケール（横比率） =====
     function applyScale(){
       const sx = parseFloat(scale.value);
-      img.style.transform = `translate(-50%,-50%) scaleX(${sx})`;
+      img.style.transform = `translate(-50%, -50%) scaleX(${sx})`;
     }
     scale.addEventListener('input', applyScale);
     applyScale();
 
-    // 身長はUI保持のみ（必要なら縦サイズへ反映ロジックを追加）
-    heightInput.addEventListener('change', ()=>{});
+    // ===== 身長入力（今は保持のみ。縦スケール連動は次回でもOK） =====
+    heightInput.addEventListener('change', ()=>{
+      // 例：img.style.height = (parseInt(heightInput.value,10)/180*80) + 'vh';
+    });
 
-    // ミラー（左右反転）
+    // ===== ミラー（左右反転） =====
     let mirrored = false;
     document.getElementById('mirrorBtn').addEventListener('click', ()=>{
       mirrored = !mirrored;
       video.style.transform = mirrored ? 'scaleX(-1)' : 'none';
+      // シルエットも反転したい場合：
+      // img.style.transform = (mirrored ? 'translate(50%,-50%) scaleX(-1)' : 'translate(-50%,-50%)') + ` scaleX(${scale.value})`;
     });
 
-    // ライト（対応端末のみ）
+    // ===== ライト（対応端末のみ） =====
     let torchOn = false;
     document.getElementById('lightBtn').addEventListener('click', async ()=>{
       try{
@@ -181,21 +225,32 @@
           torchOn = !torchOn;
           await track.applyConstraints({ advanced:[{ torch: torchOn }] });
         }else{
-          alert('お使いの端末/ブラウザではライト制御に未対応です。');
+          alert('お使いの端末/ブラウザはライト制御に未対応です。');
         }
       }catch(e){
-        alert('ライト制御に失敗しました。');
+        console.warn(e); alert('ライト制御に失敗しました。');
       }
     });
 
-    // 一時停止
+    // ===== 一時停止 =====
     let paused = false;
     document.getElementById('pauseBtn').addEventListener('click', ()=>{
       paused = !paused;
       if(paused){ video.pause(); } else { video.play(); }
     });
 
-    // 初期（M）
+    // ===== UI 開閉（ボタン / H キーでも） =====
+    const toggleBtn = document.getElementById('toggleUi');
+    function toggleUI(force){
+      const collapsed = (typeof force === 'boolean') ? force : !document.body.classList.contains('ui-collapsed');
+      document.body.classList.toggle('ui-collapsed', collapsed);
+      toggleBtn.setAttribute('aria-pressed', String(!collapsed));
+    }
+    toggleBtn.addEventListener('click', ()=>toggleUI());
+    window.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='h') toggleUI(); });
+
+    // 初期状態：UI表示 / サイズM
+    document.body.classList.remove('ui-collapsed');
     setSize('M');
   </script>
 </body>
