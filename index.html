@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AR丈感チェック（カメラ重ね合わせ）</title>
+  <style>
+    :root{--ui-bg:rgba(255,255,255,.88);--ui-blur:10px}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans JP',sans-serif;background:#000;color:#111}
+    .app{position:relative;min-height:100vh;overflow:hidden}
+    video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+    .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .overlay img{width:min(70vw, 70vh);opacity:.95;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35));transition:transform .2s ease, opacity .2s}
+    .ui{position:fixed;left:0;right:0;bottom:0;padding:12px;display:grid;gap:10px;background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .row label{font-size:14px;opacity:.85}
+    select, input[type='range'], button{appearance:none;border:1px solid #999;border-radius:10px;padding:10px;font-size:14px;background:#fff}
+    input[type='range']{width:100%}
+    .pill{display:inline-flex;gap:8px}
+    .pill button{padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #bbb}
+    .pill button.active{background:#111;color:#fff;border-color:#111}
+    .hint{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));padding:8px 12px;border-radius:10px;font-size:13px}
+    .qr{position:fixed;right:10px;bottom:120px;background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));padding:8px;border-radius:8px}
+    .qr img{width:120px;height:120px;display:block}
+    .note{font-size:12px;opacity:.7}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <video id="cam" playsinline autoplay muted></video>
+    <div class="overlay">
+      <img id="silhouette" src="./public/silhouette-M.svg" alt="silhouette"/>
+    </div>
+
+    <div class="hint">カメラに正面を向き、肩幅に合わせてスケールを調整してください。</div>
+
+    <div class="qr" id="qrBox" hidden>
+      <img id="qr" alt="QR code to this page"/>
+      <div class="note">スマホで読み取るとカメラが起動します</div>
+    </div>
+
+    <div class="ui">
+      <div class="row">
+        <label>サイズ：</label>
+        <div class="pill" id="sizePill">
+          <button data-sil="S">S</button>
+          <button class="active" data-sil="M">M</button>
+          <button data-sil="L">L</button>
+        </div>
+        <label>身長：</label>
+        <select id="height">
+          <option>150</option><option>155</option><option selected>160</option><option>165</option><option>170</option>
+        </select><span>cm</span>
+      </div>
+      <div class="row">
+        <label>スケール（肩幅に合わせる）：</label>
+        <input id="scale" type="range" min="60" max="140" value="100" />
+      </div>
+      <div class="row">
+        <button id="flip">左右反転</button>
+        <button id="torch" disabled>ライト</button>
+        <button id="freeze">一時停止</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('cam');
+    const img = document.getElementById('silhouette');
+    const scale = document.getElementById('scale');
+    const heightSel = document.getElementById('height');
+    const pill = document.getElementById('sizePill');
+    const qrBox = document.getElementById('qrBox');
+    const qrImg = document.getElementById('qr');
+    const flipBtn = document.getElementById('flip');
+    const torchBtn = document.getElementById('torch');
+    const freezeBtn = document.getElementById('freeze');
+
+    // Camera
+    let stream = null;
+    let mirrored = true;
+    let frozen = false;
+
+    async function startCam(){
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio:false });
+        video.srcObject = stream;
+        const track = stream.getVideoTracks()[0];
+        const caps = track.getCapabilities?.() || {};
+        if(caps.torch){ torchBtn.disabled = false; }
+      } catch(e){
+        alert('カメラが利用できません: ' + e.message);
+      }
+    }
+    startCam();
+
+    // Scale control
+    function applyTransform(){
+      const s = Number(scale.value)/100;
+      const h = Number(heightSel.value);
+      img.style.transform = `scale(${s})`;
+      img.style.opacity = 0.97;
+      img.title = `scale=${s.toFixed(2)} height=${h}cm`;
+    }
+    scale.addEventListener('input', applyTransform);
+    heightSel.addEventListener('change', applyTransform);
+    applyTransform();
+
+    // Size switch
+    pill.addEventListener('click', (e)=>{
+      if(e.target.tagName!=='BUTTON') return;
+      pill.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      e.target.classList.add('active');
+      img.src = `./public/silhouette-${e.target.dataset.sil}.svg`;
+    });
+
+    // Show QR on desktop
+    const isMobile = /iPhone|Android.+Mobile/.test(navigator.userAgent);
+    if(!isMobile){
+      qrBox.hidden = false;
+      const url = location.href;
+      // Use a common QR service (user may replace to any preferred one)
+      const api = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(url);
+      qrImg.src = api;
+    }
+
+    // Mirror toggle
+    flipBtn.addEventListener('click', ()=>{
+      mirrored = !mirrored;
+      video.style.transform = mirrored ? 'scaleX(-1)' : 'scaleX(1)';
+    });
+
+    // Torch (if supported)
+    torchBtn.addEventListener('click', async ()=>{
+      try{
+        const track = stream.getVideoTracks()[0];
+        await track.applyConstraints({ advanced:[{ torch: true }] });
+      }catch(e){ alert('ライト制御に対応していません'); }
+    });
+
+    // Freeze toggle
+    freezeBtn.addEventListener('click', ()=>{
+      if(!stream) return;
+      if(!frozen){
+        stream.getTracks().forEach(t=>t.enabled=false);
+        frozen = true; freezeBtn.textContent = '再開';
+      }else{
+        stream.getTracks().forEach(t=>t.enabled=true);
+        frozen = false; freezeBtn.textContent = '一時停止';
+      }
+    });
+  </script>
+</body>
+</html>
