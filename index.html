@@ -39,6 +39,22 @@
       z-index: 5;
       opacity: .95;
     }
+/* ===== QR を最前面・右下に固定 ===== */
+#qr {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 140px;            /* お好みで */
+  height: auto;
+  background: #fff;
+  padding: 8px;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.18);
+  z-index: 2147483647;     /* どんなUIよりも前面に */
+}
+
+/* overlay が上に来ないよう明示（任意だが安心） */
+.overlay { z-index: 1000; }
 
     /* 操作UI */
     .overlay {
