@@ -28,33 +28,35 @@
       background: #000;
     }
 
-    /* シルエット（S/M/L のSVGを差し替え） */
+    /* シルエット */
     #silhouette {
       position: fixed;
       top: 50%;
       left: 50%;
-      height: 80vh;          /* 目安。必要に応じて変更可 */
+      height: 80vh;
       transform: translate(-50%, -50%);
       pointer-events: none;
       z-index: 5;
       opacity: .95;
     }
-/* ===== QR を最前面・右下に固定 ===== */
-#qr {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  width: 140px;            /* お好みで */
-  height: auto;
-  background: #fff;
-  padding: 8px;
-  border-radius: 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,.18);
-  z-index: 2147483647;     /* どんなUIよりも前面に */
-}
 
-/* overlay が上に来ないよう明示（任意だが安心） */
-.overlay { z-index: 1000; }
+    /* ===== QRコードを右下に固定 ===== */
+    #qr {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 140px;
+      height: auto;
+      background: #fff;
+      padding: 8px;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      z-index: 2147483647; /* 最前面 */
+    }
+    @media (max-width: 640px) {
+      #qr { width: 96px; right: 8px; bottom: 8px; }
+      #silhouette { height: 72vh; }
+    }
 
     /* 操作UI */
     .overlay {
@@ -103,19 +105,6 @@
     }
     input[type="range"] { width:100%; }
 
-    /* QRコード（右下に固定／前面） */
-    #qr {
-      position: fixed;
-      right: 16px; bottom: 16px;
-      width: 140px; height: auto;
-      background:#fff; padding:8px; border-radius: 10px; box-shadow: var(--shadow);
-      z-index: 9999;
-    }
-    @media (max-width: 640px) {
-      #qr { width: 96px; right: 8px; bottom: 8px; }
-      #silhouette { height: 72vh; }
-    }
-
     /* 画面上部のガイドラベル */
     .tip {
       position: fixed; top: 10px; left: 50%;
@@ -141,60 +130,47 @@
   <div class="overlay">
     <div class="row">
       <span class="label">サイズ：</span>
-
       <label class="pill" id="pillS"><input type="radio" name="size" value="S">S</label>
       <label class="pill active" id="pillM"><input type="radio" name="size" value="M" checked>M</label>
       <label class="pill" id="pillL"><input type="radio" name="size" value="L">L</label>
-
       <span class="label" style="margin-left:12px;">身長：</span>
       <input type="number" id="height" value="160" min="120" max="200" step="1"><span class="label">cm</span>
     </div>
-
     <div class="row" style="justify-content:flex-end; gap:8px;">
       <button class="btn" id="mirrorBtn">左右反転</button>
       <button class="btn" id="lightBtn">ライト</button>
       <button class="btn" id="pauseBtn">一時停止</button>
     </div>
-
     <div class="slider-wrap">
       <div class="label" style="margin-bottom:6px;">スケール（肩幅に合わせる）：</div>
       <input type="range" id="scaleX" min="0.8" max="1.3" step="0.01" value="1.00">
     </div>
   </div>
 
-  <!-- QR：overlay の外に置く（前面） -->
-  <img id="qr"
-       src="<!-- TODO: ここを書き換え：あなたのQR画像URL（例：/ar-length-starter/public/qr.png や既存のQR生成URL） -->"
-       alt="QR" />
+  <!-- ✅ QRコード：overlayの外に置く（最前面に出る） -->
+  <img id="qr" src="/ar-length-starter/public/qr.png" alt="QR" />
 
   <script>
-    // ====== 画像参照ベース（GitHub Pagesのルート配下パスに固定） ======
     const BASE = '/ar-length-starter/public/';
     const MAP  = { S:'silhouette-S.svg', M:'silhouette-M.svg', L:'silhouette-L.svg' };
 
-    // ====== DOM参照 ======
     const video = document.getElementById('cam');
     const img   = document.getElementById('silhouette');
     const scale = document.getElementById('scaleX');
     const heightInput = document.getElementById('height');
-
     const pillS = document.getElementById('pillS');
     const pillM = document.getElementById('pillM');
     const pillL = document.getElementById('pillL');
 
-    // ====== カメラ起動 ======
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' }, audio: false
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
         video.srcObject = stream;
       } catch (e) {
         alert('カメラの使用許可が必要です：' + e.message);
       }
     })();
 
-    // ====== サイズ切替 ======
     function setSize(size) {
       img.src = BASE + MAP[size];
       [pillS, pillM, pillL].forEach(el => el.classList.remove('active'));
@@ -204,31 +180,23 @@
       r.addEventListener('change', () => setSize(r.value));
     });
 
-    // ====== スケール（横幅感） ======
     function applyScale() {
-      // 横方向の比率のみ可変にして体感合わせ
       const sx = parseFloat(scale.value);
       img.style.transform = `translate(-50%, -50%) scaleX(${sx})`;
     }
     scale.addEventListener('input', applyScale);
     applyScale();
 
-    // ====== 身長入力（必要に応じて縦スケール調整したい場合の例）
     heightInput.addEventListener('change', () => {
-      // ここではUI上の保持のみ（縦サイズ等へ反映したい場合はロジックを追加）
-      // 例：img.style.height = (parseInt(heightInput.value,10) / 180 * 80) + 'vh';
+      // 必要ならここで縦サイズ連動ロジックを追加
     });
 
-    // ====== ミラー（左右反転） ======
     let mirrored = false;
     document.getElementById('mirrorBtn').addEventListener('click', () => {
       mirrored = !mirrored;
       video.style.transform = mirrored ? 'scaleX(-1)' : 'none';
-      // シルエットも一緒に反転させたい場合は下行のコメントを外す
-      // img.style.transform += mirrored ? ' scaleX(-1)' : '';
     });
 
-    // ====== ライト（環境によっては効かないブラウザもあります） ======
     let torchOn = false;
     document.getElementById('lightBtn').addEventListener('click', async () => {
       try {
@@ -239,7 +207,7 @@
           torchOn = !torchOn;
           await track.applyConstraints({ advanced: [{ torch: torchOn }] });
         } else {
-          alert('お使いのデバイス/ブラウザではライト制御に未対応です。');
+          alert('ライト未対応の端末です。');
         }
       } catch (e) {
         console.warn(e);
@@ -247,14 +215,12 @@
       }
     });
 
-    // ====== 一時停止 ======
     let paused = false;
     document.getElementById('pauseBtn').addEventListener('click', () => {
       paused = !paused;
       if (paused) { video.pause(); } else { video.play(); }
     });
 
-    // 初期サイズ（M）
     setSize('M');
   </script>
 </body>
