@@ -2,154 +2,244 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AR丈感チェック（カメラ重ね合わせ）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AR 丈感チェック（カメラ重ね合わせ）</title>
   <style>
-    :root{--ui-bg:rgba(255,255,255,.88);--ui-blur:10px}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans JP',sans-serif;background:#000;color:#111}
-    .app{position:relative;min-height:100vh;overflow:hidden}
-    video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-    .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-    .overlay img{width:min(70vw, 70vh);opacity:.95;filter:drop-shadow(0 6px 18px rgba(0,0,0,.35));transition:transform .2s ease, opacity .2s}
-    .ui{position:fixed;left:0;right:0;bottom:0;padding:12px;display:grid;gap:10px;background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .row label{font-size:14px;opacity:.85}
-    select, input[type='range'], button{appearance:none;border:1px solid #999;border-radius:10px;padding:10px;font-size:14px;background:#fff}
-    input[type='range']{width:100%}
-    .pill{display:inline-flex;gap:8px}
-    .pill button{padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #bbb}
-    .pill button.active{background:#111;color:#fff;border-color:#111}
-    .hint{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));padding:8px 12px;border-radius:10px;font-size:13px}
-    .qr{position:fixed;right:10px;bottom:120px;background:var(--ui-bg);backdrop-filter:blur(var(--ui-blur));padding:8px;border-radius:8px}
-    .qr img{width:120px;height:120px;display:block}
-    .note{font-size:12px;opacity:.7}
+    :root {
+      --ui-bg: rgba(255,255,255,.88);
+      --ui-blur: 10px;
+      --shadow: 0 8px 28px rgba(0,0,0,.15);
+      --accent: #0ea5e9;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Noto Sans JP", Segoe UI, Roboto, sans-serif;
+      background:#000; color:#111;
+    }
+
+    /* カメラ映像 */
+    #cam {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* シルエット（S/M/L のSVGを差し替え） */
+    #silhouette {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      height: 80vh;          /* 目安。必要に応じて変更可 */
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+      opacity: .95;
+    }
+
+    /* 操作UI */
+    .overlay {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--ui-bg);
+      -webkit-backdrop-filter: blur(var(--ui-blur));
+      backdrop-filter: blur(var(--ui-blur));
+      border-top-left-radius: 14px;
+      border-top-right-radius: 14px;
+      box-shadow: var(--shadow);
+      z-index: 20;
+    }
+    .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .label { font-size: 14px; opacity:.8; }
+    .pill {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width: 42px; height: 36px; padding: 0 10px;
+      border-radius: 999px; border:1px solid #d0d0d0; background:#fff;
+      cursor:pointer; font-weight:600;
+    }
+    .pill input { appearance:none; }
+    .pill.active { border-color:#0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,.15); }
+
+    input[type="number"] {
+      width: 72px; height: 36px;
+      border:1px solid #d0d0d0; border-radius: 8px; padding: 0 8px;
+      background:#fff; font-weight:600;
+    }
+
+    .btn {
+      height: 36px; padding: 0 12px; border-radius: 10px;
+      border:1px solid #cfcfcf; background:#fff; cursor:pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { border-color: var(--accent); color:#fff; background: var(--accent); }
+
+    .slider-wrap {
+      grid-column: 1 / -1;
+      background:#fff; border:1px solid #e5e5e5; border-radius: 10px; padding: 8px 10px;
+    }
+    input[type="range"] { width:100%; }
+
+    /* QRコード（右下に固定／前面） */
+    #qr {
+      position: fixed;
+      right: 16px; bottom: 16px;
+      width: 140px; height: auto;
+      background:#fff; padding:8px; border-radius: 10px; box-shadow: var(--shadow);
+      z-index: 9999;
+    }
+    @media (max-width: 640px) {
+      #qr { width: 96px; right: 8px; bottom: 8px; }
+      #silhouette { height: 72vh; }
+    }
+
+    /* 画面上部のガイドラベル */
+    .tip {
+      position: fixed; top: 10px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--ui-bg);
+      -webkit-backdrop-filter: blur(var(--ui-blur));
+      backdrop-filter: blur(var(--ui-blur));
+      border-radius: 999px; padding: 8px 14px; box-shadow: var(--shadow);
+      z-index: 30; font-size: 12px;
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <video id="cam" playsinline autoplay muted></video>
-    <div class="overlay">
-      <img id="silhouette" src="./public/silhouette-M.svg" alt="silhouette" />
+  <div class="tip">カメラに正面を向き、肩幅に合わせてスケールを調整してください。</div>
+
+  <!-- カメラ -->
+  <video id="cam" autoplay muted playsinline></video>
+
+  <!-- シルエット（初期はMを表示） -->
+  <img id="silhouette" alt="silhouette" src="/ar-length-starter/public/silhouette-M.svg" />
+
+  <!-- 操作UI -->
+  <div class="overlay">
+    <div class="row">
+      <span class="label">サイズ：</span>
+
+      <label class="pill" id="pillS"><input type="radio" name="size" value="S">S</label>
+      <label class="pill active" id="pillM"><input type="radio" name="size" value="M" checked>M</label>
+      <label class="pill" id="pillL"><input type="radio" name="size" value="L">L</label>
+
+      <span class="label" style="margin-left:12px;">身長：</span>
+      <input type="number" id="height" value="160" min="120" max="200" step="1"><span class="label">cm</span>
     </div>
 
-    <div class="hint">カメラに正面を向き、肩幅に合わせてスケールを調整してください。</div>
-
-    <div class="qr" id="qrBox" hidden>
-      <img id="qr" alt="QR code to this page"/>
-      <div class="note">スマホで読み取るとカメラが起動します</div>
+    <div class="row" style="justify-content:flex-end; gap:8px;">
+      <button class="btn" id="mirrorBtn">左右反転</button>
+      <button class="btn" id="lightBtn">ライト</button>
+      <button class="btn" id="pauseBtn">一時停止</button>
     </div>
 
-    <div class="ui">
-      <div class="row">
-        <label>サイズ：</label>
-        <div class="pill" id="sizePill">
-          <button data-sil="S">S</button>
-          <button class="active" data-sil="M">M</button>
-          <button data-sil="L">L</button>
-        </div>
-        <label>身長：</label>
-        <select id="height">
-          <option>150</option><option>155</option><option selected>160</option><option>165</option><option>170</option>
-        </select><span>cm</span>
-      </div>
-      <div class="row">
-        <label>スケール（肩幅に合わせる）：</label>
-        <input id="scale" type="range" min="60" max="140" value="100" />
-      </div>
-      <div class="row">
-        <button id="flip">左右反転</button>
-        <button id="torch" disabled>ライト</button>
-        <button id="freeze">一時停止</button>
-      </div>
+    <div class="slider-wrap">
+      <div class="label" style="margin-bottom:6px;">スケール（肩幅に合わせる）：</div>
+      <input type="range" id="scaleX" min="0.8" max="1.3" step="0.01" value="1.00">
     </div>
   </div>
 
+  <!-- QR：overlay の外に置く（前面） -->
+  <img id="qr"
+       src="<!-- TODO: ここを書き換え：あなたのQR画像URL（例：/ar-length-starter/public/qr.png や既存のQR生成URL） -->"
+       alt="QR" />
+
   <script>
+    // ====== 画像参照ベース（GitHub Pagesのルート配下パスに固定） ======
+    const BASE = '/ar-length-starter/public/';
+    const MAP  = { S:'silhouette-S.svg', M:'silhouette-M.svg', L:'silhouette-L.svg' };
+
+    // ====== DOM参照 ======
     const video = document.getElementById('cam');
-    const img = document.getElementById('silhouette');
-    const scale = document.getElementById('scale');
-    const heightSel = document.getElementById('height');
-    const pill = document.getElementById('sizePill');
-    const qrBox = document.getElementById('qrBox');
-    const qrImg = document.getElementById('qr');
-    const flipBtn = document.getElementById('flip');
-    const torchBtn = document.getElementById('torch');
-    const freezeBtn = document.getElementById('freeze');
+    const img   = document.getElementById('silhouette');
+    const scale = document.getElementById('scaleX');
+    const heightInput = document.getElementById('height');
 
-    // Camera
-    let stream = null;
-    let mirrored = true;
-    let frozen = false;
+    const pillS = document.getElementById('pillS');
+    const pillM = document.getElementById('pillM');
+    const pillL = document.getElementById('pillL');
 
-    async function startCam(){
+    // ====== カメラ起動 ======
+    (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio:false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' }, audio: false
+        });
         video.srcObject = stream;
-        const track = stream.getVideoTracks()[0];
-        const caps = track.getCapabilities?.() || {};
-        if(caps.torch){ torchBtn.disabled = false; }
-      } catch(e){
-        alert('カメラが利用できません: ' + e.message);
+      } catch (e) {
+        alert('カメラの使用許可が必要です：' + e.message);
       }
-    }
-    startCam();
+    })();
 
-    // Scale control
-    function applyTransform(){
-      const s = Number(scale.value)/100;
-      const h = Number(heightSel.value);
-      img.style.transform = `scale(${s})`;
-      img.style.opacity = 0.97;
-      img.title = `scale=${s.toFixed(2)} height=${h}cm`;
+    // ====== サイズ切替 ======
+    function setSize(size) {
+      img.src = BASE + MAP[size];
+      [pillS, pillM, pillL].forEach(el => el.classList.remove('active'));
+      ({S:pillS, M:pillM, L:pillL}[size]).classList.add('active');
     }
-    scale.addEventListener('input', applyTransform);
-    heightSel.addEventListener('change', applyTransform);
-    applyTransform();
-
-    // Size switch
-    pill.addEventListener('click', (e)=>{
-      if(e.target.tagName!=='BUTTON') return;
-      pill.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-      e.target.classList.add('active');
-      img.src = `./public/silhouette-${e.target.dataset.sil}.svg`;
+    document.querySelectorAll('input[name="size"]').forEach(r => {
+      r.addEventListener('change', () => setSize(r.value));
     });
 
-    // Show QR on desktop
-    const isMobile = /iPhone|Android.+Mobile/.test(navigator.userAgent);
-    if(!isMobile){
-      qrBox.hidden = false;
-      const url = location.href;
-      // Use a common QR service (user may replace to any preferred one)
-      const api = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(url);
-      qrImg.src = api;
+    // ====== スケール（横幅感） ======
+    function applyScale() {
+      // 横方向の比率のみ可変にして体感合わせ
+      const sx = parseFloat(scale.value);
+      img.style.transform = `translate(-50%, -50%) scaleX(${sx})`;
     }
+    scale.addEventListener('input', applyScale);
+    applyScale();
 
-    // Mirror toggle
-    flipBtn.addEventListener('click', ()=>{
+    // ====== 身長入力（必要に応じて縦スケール調整したい場合の例）
+    heightInput.addEventListener('change', () => {
+      // ここではUI上の保持のみ（縦サイズ等へ反映したい場合はロジックを追加）
+      // 例：img.style.height = (parseInt(heightInput.value,10) / 180 * 80) + 'vh';
+    });
+
+    // ====== ミラー（左右反転） ======
+    let mirrored = false;
+    document.getElementById('mirrorBtn').addEventListener('click', () => {
       mirrored = !mirrored;
-      video.style.transform = mirrored ? 'scaleX(-1)' : 'scaleX(1)';
+      video.style.transform = mirrored ? 'scaleX(-1)' : 'none';
+      // シルエットも一緒に反転させたい場合は下行のコメントを外す
+      // img.style.transform += mirrored ? ' scaleX(-1)' : '';
     });
 
-    // Torch (if supported)
-    torchBtn.addEventListener('click', async ()=>{
-      try{
-        const track = stream.getVideoTracks()[0];
-        await track.applyConstraints({ advanced:[{ torch: true }] });
-      }catch(e){ alert('ライト制御に対応していません'); }
-    });
-
-    // Freeze toggle
-    freezeBtn.addEventListener('click', ()=>{
-      if(!stream) return;
-      if(!frozen){
-        stream.getTracks().forEach(t=>t.enabled=false);
-        frozen = true; freezeBtn.textContent = '再開';
-      }else{
-        stream.getTracks().forEach(t=>t.enabled=true);
-        frozen = false; freezeBtn.textContent = '一時停止';
+    // ====== ライト（環境によっては効かないブラウザもあります） ======
+    let torchOn = false;
+    document.getElementById('lightBtn').addEventListener('click', async () => {
+      try {
+        const track = video.srcObject?.getVideoTracks?.()[0];
+        if (!track) return;
+        const capabilities = track.getCapabilities?.();
+        if (capabilities && 'torch' in capabilities) {
+          torchOn = !torchOn;
+          await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        } else {
+          alert('お使いのデバイス/ブラウザではライト制御に未対応です。');
+        }
+      } catch (e) {
+        console.warn(e);
+        alert('ライト制御に失敗しました。');
       }
     });
+
+    // ====== 一時停止 ======
+    let paused = false;
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      paused = !paused;
+      if (paused) { video.pause(); } else { video.play(); }
+    });
+
+    // 初期サイズ（M）
+    setSize('M');
   </script>
 </body>
 </html>
