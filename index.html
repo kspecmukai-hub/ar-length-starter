@@ -40,23 +40,22 @@
       opacity: .95;
     }
 
-    /* ===== QRコードを右下に固定 ===== */
-    #qr {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      width: 140px;
-      height: auto;
-      background: #fff;
-      padding: 8px;
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-      z-index: 2147483647; /* 最前面 */
-    }
-    @media (max-width: 640px) {
-      #qr { width: 96px; right: 8px; bottom: 8px; }
-      #silhouette { height: 72vh; }
-    }
+   /* ===== QR を最前面・右下に固定 ===== */
+#qr {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 140px;          /* お好みで調整 */
+  height: auto;
+  background: #fff;
+  padding: 8px;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.18);
+  z-index: 2147483647;   /* どんなUIよりも前面に */
+}
+@media (max-width: 640px) {
+  #qr { width: 96px; right: 8px; bottom: 8px; }
+}
 
     /* 操作UI */
     .overlay {
